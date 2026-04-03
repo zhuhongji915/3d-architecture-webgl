@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>3D 作品展示</title>
+    <style>body { margin: 0; background-color: #e0e0e0; }</style>
+</head>
+<body>
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        // 1. 初始化 WebGL 渲染管线与视锥体 (Frustum)
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xe0e0e0); // 干净的浅灰色
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });// 开启抗锯齿优化边缘
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 强力环境光，确保模型每个面都是亮的
+        scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+        const light = new THREE.DirectionalLight(0xffffff, 1.5);
+        light.position.set(1, 1, 1);
+        scene.add(light);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        // 2. 采用异步非阻塞加载 (Asynchronous I/O)，防止大型资产阻塞主线程
+        const loader = new GLTFLoader();
+        
+        loader.load('models/eco-residential-building.glb', function (gltf) {
+            const model = gltf.scene;
+
+            // 3. 核心算法：基于 AABB（轴对齐包围盒）的空间坐标系自适应对齐
+            const box = new THREE.Box3().setFromObject(model);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            
+            // 4. 齐次坐标变换：通过统一缩放标量与平移矩阵，强制重置世界坐标系原点
+            const scale = 100 / maxDim;
+            model.scale.set(scale, scale, scale);
+            model.position.x = -center.x * scale;
+            model.position.y = -center.y * scale;
+            model.position.z = -center.z * scale;
+
+            scene.add(model);
+
+            // 相机直接怼到物体面前
+            camera.position.set(150, 150, 150);
+            controls.target.set(0, 0, 0);
+            controls.update();
+            console.log("加载成功！");
+        }, undefined, (e) => console.error(e));
+            // 5. 绑定浏览器硬件刷新率，开启垂直同步渲染循环 (Render Loop)
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
